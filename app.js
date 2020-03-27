@@ -42,7 +42,7 @@ const userSchema = new mongoose.Schema({
 });
 
 userSchema.plugin(passportLocalMongoose); //to hash and salt password and save to to the mongo database and some method for simple code
-userSchema.plugin(findOrCreate);
+userSchema.plugin(findOrCreate); // this is a module
 
 const User = new mongoose.model("User", userSchema);
 
@@ -66,13 +66,14 @@ passport.use(
     {
       clientID: process.env.CLIENT_ID,
       clientSecret: process.env.CLIENT_SECRET,
-      callbackURL: "http://localhost:3000/auth/google/secrets",
-      userProfileURL: "https://www.googleapis.com/oauth2/v3/userinfo"
+      callbackURL: "http://localhost:3000/auth/google/secrets", //where u want to go after auth
+      userProfileURL: "https://www.googleapis.com/oauth2/v3/userinfo" //a fix to draw profile without google+
     },
     function(accessToken, refreshToken, profile, cb) {
       console.log(profile);
 
       User.findOrCreate({ googleId: profile.id }, function(err, user) {
+        //find or create the return google id in our db
         return cb(err, user);
       });
     }
@@ -83,11 +84,13 @@ app.get("/", function(req, res) {
   res.render("home");
 });
 
+//the route when you click the google button
 app.get(
   "/auth/google",
   passport.authenticate("google", { scope: ["profile"] })
 );
 
+//the route after google auth, which is the redirect from google.
 app.get(
   "/auth/google/secrets",
   passport.authenticate("google", { failureRedirect: "/login" }),
@@ -105,26 +108,32 @@ app.get("/register", function(req, res) {
   res.render("register");
 });
 
+//show all secrets on the screen
 app.get("/secrets", function(req, res) {
   User.find({ secret: { $ne: null } }, function(err, foundUsers) {
+    //$ne: not equals
     if (err) {
       console.log(err);
     } else {
       if (foundUsers) {
+        //found user is an object with all user data
         res.render("secrets", { usersWithSecrets: foundUsers });
       }
     }
   });
 });
 
+//the submit secret page
 app.get("/submit", function(req, res) {
   if (req.isAuthenticated()) {
+    //req.isAuthenticated() will return true if user is logged in
     res.render("submit");
   } else {
     res.redirect("/login");
   }
 });
 
+//post a secret by auth user
 app.post("/submit", function(req, res) {
   const submittedSecret = req.body.secret;
 
@@ -150,6 +159,7 @@ app.get("/logout", function(req, res) {
   res.redirect("/");
 });
 
+//register a new user
 app.post("/register", function(req, res) {
   User.register({ username: req.body.username }, req.body.password, function(
     //thanks to passport local mongoose, we don`t need to touch mongoose
