@@ -46,16 +46,17 @@ userSchema.plugin(findOrCreate); // this is a module
 
 const User = new mongoose.model("User", userSchema);
 
-passport.use(User.createStrategy()); //tell passport to use local strategy
+passport.use(User.createStrategy()); //tell passport to use local strategy which is define by passportLocalMongoose.
 
 //the origin serialize code from passport should be used for all strategies
 passport.serializeUser(function(user, done) {
-  //to turn the userid to session
+  //run by the passport.authentication function, and grap the user id in db
+  //to turn the userid in mongo to session id and store it at req.user.passport
   done(null, user.id);
 });
 
 passport.deserializeUser(function(id, done) {
-  //to destroy the session
+  //base on the req.user, find the user in db with the hash and salt for usage.
   User.findById(id, function(err, user) {
     done(err, user);
   });
@@ -110,17 +111,17 @@ app.get("/register", function(req, res) {
 
 //show all secrets on the screen
 app.get("/secrets", function(req, res) {
-  User.find({ secret: { $ne: null } }, function(err, foundUsers) {
-    //$ne: not equals
-    if (err) {
-      console.log(err);
-    } else {
-      if (foundUsers) {
-        //found user is an object with all user data
-        res.render("secrets", { usersWithSecrets: foundUsers });
-      }
-    }
-  });
+  if (req.isAuthenticated()) {
+    //req.isAuthenticated() will return true if user is logged in
+    User.find({ secret: { $ne: null } }, function(err, foundUsers) {
+      //$ne: not equals
+
+      //found user is an object with all user data
+      res.render("secrets", { usersWithSecrets: foundUsers });
+    });
+  } else {
+    res.send("you are not authorized");
+  }
 });
 
 //the submit secret page
@@ -177,23 +178,13 @@ app.post("/register", function(req, res) {
   });
 });
 
-app.post("/login", function(req, res) {
-  const user = new User({
-    username: req.body.username,
-    password: req.body.password
-  });
-
-  // used to establish a login session
-  req.login(user, function(err) {
-    if (err) {
-      console.log(err);
-    } else {
-      passport.authenticate("local")(req, res, function() {
-        res.redirect("/secrets");
-      });
-    }
-  });
-});
+app.post(
+  "/login",
+  passport.authenticate("local", {
+    successRedirect: "/secrets",
+    failureRedirect: "/login"
+  })
+);
 
 app.listen(3000, function() {
   console.log("Server started on port 3000.");
